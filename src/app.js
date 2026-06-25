@@ -9,14 +9,29 @@ const errorHandler = require("./middleware/errorHandler");
 const app = express();
 
 app.use(helmet());
-app.use(cors({ origin: process.env.CLIENT_URL }));
+app.use(
+  cors({
+    origin: process.env.CLIENT_URL || "http://localhost:5173",
+    credentials: true,
+  }),
+);
 app.use(morgan("dev"));
 app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 
-// Routes (we'll add as we build)
+app.get("/", (req, res) => {
+  res.json({ success: true, message: "RentSafe API is live ✅" });
+});
+
+// Routes will be mounted here as we build each module
+// Routes
 app.use("/api/auth", require("./routes/auth.routes"));
 
-app.get("/", (req, res) => res.json({ message: "RentSafe API live ✅" }));
+app.use((req, res) => {
+  res
+    .status(404)
+    .json({ success: false, message: `Route not found: ${req.originalUrl}` });
+});
 
 app.use(errorHandler);
 
