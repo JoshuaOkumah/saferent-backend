@@ -25,7 +25,11 @@ app.get("/", (req, res) => {
 
 // Routes will be mounted here as we build each module
 // Routes
+// Routes
 app.use("/api/auth", require("./routes/auth.routes"));
+app.use("/api/properties", require("./routes/property.routes"));
+app.use("/api/properties/:propertyId/units", require("./routes/unit.routes"));
+app.use("/api/units", require("./routes/unit.routes"));
 
 app.use((req, res) => {
   res
