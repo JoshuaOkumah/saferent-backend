@@ -20,7 +20,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
 app.get("/", (req, res) => {
-  res.json({ success: true, message: "RentSafe API is live ✅" });
+  res.json({ success: true, message: "RentSafe API is live " });
 });
 
 // Routes will be mounted here as we build each module
@@ -30,6 +30,8 @@ app.use("/api/auth", require("./routes/auth.routes"));
 app.use("/api/properties", require("./routes/property.routes"));
 app.use("/api/properties/:propertyId/units", require("./routes/unit.routes"));
 app.use("/api/units", require("./routes/unit.routes"));
+app.use("/api/tenants", require("./routes/tenant.routes"));
+app.use("/api/leases", require("./routes/lease.routes"));
 
 app.use((req, res) => {
   res
