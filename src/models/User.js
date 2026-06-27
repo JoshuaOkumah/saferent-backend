@@ -62,6 +62,18 @@ const userSchema = new mongoose.Schema(
       ref: "User",
       default: null,
     },
+    // ─── Tenant account activation (landlord-created accounts) ────────────────────
+    accountStatus: {
+      type: String,
+      enum: ["Active", "Pending Activation", "Suspended"],
+      default: "Active", // landlords who self-register are immediately active
+    },
+    // Links the User account back to the Tenant profile record
+    tenantProfile: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Tenant",
+      default: null,
+    },
     // Email verification OTP
     emailVerificationOtpHash: {
       type: String,

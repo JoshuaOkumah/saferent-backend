@@ -51,6 +51,13 @@ const tenantSchema = new mongoose.Schema(
       required: true,
     },
 
+    // The User account created for this tenant (set after invitation is accepted)
+    userAccount: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+
     firstName: {
       type: String,
       required: [true, "First name is required"],
@@ -139,15 +146,29 @@ const tenantSchema = new mongoose.Schema(
       type: [tenantDocumentSchema],
       default: [],
     },
+    // Visible to both tenant and landlord
     notes: {
       type: String,
       trim: true,
       default: null,
     },
+    // Landlord-only internal comments — never exposed to tenant
+    internalNotes: {
+      type: String,
+      trim: true,
+      default: null,
+      select: true, // we'll manually strip this from tenant-facing responses
+    },
     status: {
       type: String,
-      enum: ["Active", "Former", "Blacklisted", "Archived"],
-      default: "Former", // becomes Active when lease is created
+      enum: [
+        "Active",
+        "Former",
+        "Blacklisted",
+        "Archived",
+        "Pending Activation",
+      ],
+      default: "Pending Activation", // until invite is accepted
     },
   },
   { timestamps: true },
