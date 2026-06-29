@@ -50,7 +50,12 @@ const userSchema = new mongoose.Schema(
       default: false,
     },
     profilePhoto: {
+      publicId: { type: String, default: null },
+      secureUrl: { type: String, default: null },
+    },
+    address: {
       type: String,
+      trim: true,
       default: null,
     },
     bankAccount: {

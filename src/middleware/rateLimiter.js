@@ -24,5 +24,16 @@ const otpLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
+// Global API limiter — generous ceiling, just blocks bots hammering the API
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 200,
+  message: {
+    success: false,
+    message: "Too many requests from this IP. Please slow down.",
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
-module.exports = { loginLimiter, otpLimiter };
+module.exports = { loginLimiter, otpLimiter, globalLimiter };
