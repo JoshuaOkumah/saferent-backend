@@ -45,6 +45,7 @@ app.use("/api/properties/:propertyId/units", require("./routes/unit.routes"));
 app.use("/api/units", require("./routes/unit.routes"));
 app.use("/api/tenants", require("./routes/tenant.routes"));
 app.use("/api/leases", require("./routes/lease.routes"));
+app.use("/api/agreements", require("./routes/agreement.routes"));
 
 // ─── 404 handler ──────────────────────────────────────────────────────────────
 app.use((req, res) => {

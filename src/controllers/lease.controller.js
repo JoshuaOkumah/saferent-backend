@@ -2,7 +2,10 @@ const Lease = require("../models/Lease");
 const Tenant = require("../models/Tenant");
 const Unit = require("../models/Unit");
 const Property = require("../models/Property");
+const RentalAgreement = require("../models/RentalAgreement");
 const ApiError = require("../utils/ApiError");
+const { createAgreement } = require("../services/agreement.service");
+const { voidAgreement } = require("../services/agreement.service");
 const { logActivity } = require("../services/activityLog.service");
 const {
   generateLeaseNumber,
@@ -11,6 +14,152 @@ const {
 } = require("../services/lease.service");
 
 // ─── POST /api/leases ─────────────────────────────────────────────────────────
+// const createLease = async (req, res) => {
+//   const {
+//     tenantId,
+//     propertyId,
+//     unitId,
+//     startDate,
+//     endDate,
+//     rentAmount,
+//     securityDeposit,
+//     serviceCharge,
+//     paymentFrequency,
+//     rentDueDay,
+//     gracePeriod,
+//     noticePeriod,
+//     renewalOption,
+//     notes,
+//   } = req.body;
+
+//   // ── 1. Verify tenant belongs to this landlord ──────────────────────────────
+//   const tenant = await Tenant.findOne({ _id: tenantId, owner: req.user.id });
+//   if (!tenant) throw new ApiError(404, "Tenant not found");
+//   if (tenant.status === "Archived")
+//     throw new ApiError(400, "Cannot create a lease for an archived tenant");
+//   if (tenant.status === "Blacklisted")
+//     throw new ApiError(400, "Cannot create a lease for a blacklisted tenant");
+
+//   // ── 2. Verify property belongs to this landlord ───────────────────────────
+//   const property = await Property.findOne({
+//     _id: propertyId,
+//     owner: req.user.id,
+//   });
+//   if (!property) throw new ApiError(404, "Property not found");
+//   if (property.status === "Archived")
+//     throw new ApiError(400, "Cannot create a lease on an archived property");
+
+//   // ── 3. Verify unit belongs to this property ───────────────────────────────
+//   const unit = await Unit.findOne({
+//     _id: unitId,
+//     property: propertyId,
+//     owner: req.user.id,
+//   });
+//   if (!unit) throw new ApiError(404, "Unit not found in this property");
+//   if (unit.isArchived)
+//     throw new ApiError(400, "Cannot create a lease on an archived unit");
+
+//   // ── 4. Unit must be vacant or reserved ───────────────────────────────────
+//   if (unit.status === "Occupied") {
+//     throw new ApiError(
+//       400,
+//       "This unit is already occupied. Terminate the existing lease first.",
+//     );
+//   }
+//   if (unit.status === "Under Maintenance") {
+//     throw new ApiError(
+//       400,
+//       "This unit is under maintenance and cannot be leased.",
+//     );
+//   }
+
+//   // ── 5. No active lease on this unit ──────────────────────────────────────
+//   const existingActiveLease = await getActiveLeaseForUnit(unitId);
+//   if (existingActiveLease) {
+//     throw new ApiError(400, "An active lease already exists for this unit.");
+//   }
+
+//   // ── 6. Tenant cannot have two simultaneous active leases ──────────────────
+//   const tenantActiveLease = await Lease.findOne({
+//     tenant: tenantId,
+//     status: "Active",
+//   });
+//   if (tenantActiveLease) {
+//     throw new ApiError(
+//       400,
+//       "This tenant already has an active lease. A tenant can only occupy one unit at a time.",
+//     );
+//   }
+
+//   // ── 7. Check for overlapping lease dates on this unit ────────────────────
+//   const overlap = await hasOverlappingLease(
+//     unitId,
+//     new Date(startDate),
+//     new Date(endDate),
+//   );
+//   if (overlap) {
+//     throw new ApiError(
+//       400,
+//       "Lease dates overlap with an existing lease for this unit.",
+//     );
+//   }
+
+//   // ── 8. Generate lease number ──────────────────────────────────────────────
+//   const leaseNumber = await generateLeaseNumber();
+
+//   // ── 9. Create lease ───────────────────────────────────────────────────────
+//   const lease = await Lease.create({
+//     leaseNumber,
+//     tenant: tenantId,
+//     property: propertyId,
+//     unit: unitId,
+//     landlord: req.user.id,
+//     startDate: new Date(startDate),
+//     endDate: new Date(endDate),
+//     rentAmount,
+//     securityDeposit: securityDeposit || 0,
+//     serviceCharge: serviceCharge || 0,
+//     paymentFrequency: paymentFrequency || "Monthly",
+//     rentDueDay: rentDueDay || 1,
+//     gracePeriod: gracePeriod ?? 7,
+//     noticePeriod: noticePeriod ?? 30,
+//     renewalOption: renewalOption ?? true,
+//     notes: notes || null,
+//     status: "Active",
+//   });
+
+//   // ── 10. Update unit: mark occupied, assign tenant ─────────────────────────
+//   unit.status = "Occupied";
+//   unit.tenant = tenant._id;
+//   await unit.save();
+
+//   // ── 11. Update tenant: mark active ───────────────────────────────────────
+//   tenant.status = "Active";
+//   await tenant.save();
+
+//   await logActivity({
+//     actor: req.user.id,
+//     action: "LEASE_CREATED",
+//     entity: "Lease",
+//     entityId: lease._id,
+//     meta: {
+//       leaseNumber,
+//       tenantName: `${tenant.firstName} ${tenant.lastName}`,
+//       unitNumber: unit.unitNumber,
+//     },
+//   });
+
+//   const populated = await Lease.findById(lease._id)
+//     .populate("tenant", "firstName lastName email phone")
+//     .populate("property", "name address")
+//     .populate("unit", "unitNumber unitType");
+
+//   res.status(201).json({
+//     success: true,
+//     message: "Lease created successfully",
+//     data: populated,
+//   });
+// };
 const createLease = async (req, res) => {
   const {
     tenantId,
@@ -29,7 +178,6 @@ const createLease = async (req, res) => {
     notes,
   } = req.body;
 
-  // ── 1. Verify tenant belongs to this landlord ──────────────────────────────
   const tenant = await Tenant.findOne({ _id: tenantId, owner: req.user.id });
   if (!tenant) throw new ApiError(404, "Tenant not found");
   if (tenant.status === "Archived")
@@ -37,7 +185,6 @@ const createLease = async (req, res) => {
   if (tenant.status === "Blacklisted")
     throw new ApiError(400, "Cannot create a lease for a blacklisted tenant");
 
-  // ── 2. Verify property belongs to this landlord ───────────────────────────
   const property = await Property.findOne({
     _id: propertyId,
     owner: req.user.id,
@@ -46,7 +193,6 @@ const createLease = async (req, res) => {
   if (property.status === "Archived")
     throw new ApiError(400, "Cannot create a lease on an archived property");
 
-  // ── 3. Verify unit belongs to this property ───────────────────────────────
   const unit = await Unit.findOne({
     _id: unitId,
     property: propertyId,
@@ -56,7 +202,6 @@ const createLease = async (req, res) => {
   if (unit.isArchived)
     throw new ApiError(400, "Cannot create a lease on an archived unit");
 
-  // ── 4. Unit must be vacant or reserved ───────────────────────────────────
   if (unit.status === "Occupied") {
     throw new ApiError(
       400,
@@ -70,25 +215,25 @@ const createLease = async (req, res) => {
     );
   }
 
-  // ── 5. No active lease on this unit ──────────────────────────────────────
   const existingActiveLease = await getActiveLeaseForUnit(unitId);
   if (existingActiveLease) {
-    throw new ApiError(400, "An active lease already exists for this unit.");
+    throw new ApiError(
+      400,
+      "A lease is already in progress for this unit. Complete or cancel it first.",
+    );
   }
 
-  // ── 6. Tenant cannot have two simultaneous active leases ──────────────────
   const tenantActiveLease = await Lease.findOne({
     tenant: tenantId,
-    status: "Active",
+    status: { $in: ["Active", "Pending"] },
   });
   if (tenantActiveLease) {
     throw new ApiError(
       400,
-      "This tenant already has an active lease. A tenant can only occupy one unit at a time.",
+      "This tenant already has an active or pending lease.",
     );
   }
 
-  // ── 7. Check for overlapping lease dates on this unit ────────────────────
   const overlap = await hasOverlappingLease(
     unitId,
     new Date(startDate),
@@ -101,10 +246,8 @@ const createLease = async (req, res) => {
     );
   }
 
-  // ── 8. Generate lease number ──────────────────────────────────────────────
   const leaseNumber = await generateLeaseNumber();
 
-  // ── 9. Create lease ───────────────────────────────────────────────────────
   const lease = await Lease.create({
     leaseNumber,
     tenant: tenantId,
@@ -122,17 +265,14 @@ const createLease = async (req, res) => {
     noticePeriod: noticePeriod ?? 30,
     renewalOption: renewalOption ?? true,
     notes: notes || null,
-    status: "Active",
+    status: "Pending", // ← PENDING until both parties sign
+    // Unit is NOT touched here
   });
 
-  // ── 10. Update unit: mark occupied, assign tenant ─────────────────────────
-  unit.status = "Occupied";
-  unit.tenant = tenant._id;
-  await unit.save();
+  // Create the agreement shell
+  // Create agreement and auto-generate PDF
 
-  // ── 11. Update tenant: mark active ───────────────────────────────────────
-  tenant.status = "Active";
-  await tenant.save();
+  await createAgreement(lease._id);
 
   await logActivity({
     actor: req.user.id,
@@ -141,8 +281,7 @@ const createLease = async (req, res) => {
     entityId: lease._id,
     meta: {
       leaseNumber,
-      tenantName: `${tenant.firstName} ${tenant.lastName}`,
-      unitNumber: unit.unitNumber,
+      note: "Lease PENDING — awaiting agreement signatures before activation",
     },
   });
 
@@ -153,7 +292,8 @@ const createLease = async (req, res) => {
 
   res.status(201).json({
     success: true,
-    message: "Lease created successfully",
+    message:
+      "Lease created. Agreement must be signed by both parties before the unit is occupied.",
     data: populated,
   });
 };
@@ -218,6 +358,60 @@ const getLeaseById = async (req, res) => {
 };
 
 // ─── PATCH /api/leases/:id/terminate ─────────────────────────────────────────
+// const terminateLease = async (req, res) => {
+//   const { reason } = req.body;
+
+//   const lease = await Lease.findOne({
+//     _id: req.params.id,
+//     landlord: req.user.id,
+//   });
+//   if (!lease) throw new ApiError(404, "Lease not found");
+
+//   const terminableStatuses = ["Active", "Pending"];
+//   if (!terminableStatuses.includes(lease.status)) {
+//     throw new ApiError(
+//       400,
+//       `Cannot terminate a lease with status: ${lease.status}`,
+//     );
+//   }
+
+//   // Update lease
+//   lease.status = "Terminated";
+//   lease.terminatedAt = new Date();
+//   lease.terminationReason = reason || null;
+//   await lease.save();
+
+//   // Free the unit
+//   const unit = await Unit.findById(lease.unit);
+//   if (unit) {
+//     unit.status = "Vacant";
+//     unit.tenant = null;
+//     await unit.save();
+//   }
+
+//   // Mark tenant as Former
+//   const tenant = await Tenant.findById(lease.tenant);
+//   if (tenant) {
+//     tenant.status = "Former";
+//     await tenant.save();
+//   }
+
+//   await logActivity({
+//     actor: req.user.id,
+//     action: "LEASE_ENDED",
+//     entity: "Lease",
+//     entityId: lease._id,
+//     meta: {
+//       leaseNumber: lease.leaseNumber,
+//       reason: reason || "No reason provided",
+//     },
+//   });
+
+//   res.status(200).json({
+//     success: true,
+//     message: "Lease terminated. Unit is now vacant.",
+//   });
+// };
 const terminateLease = async (req, res) => {
   const { reason } = req.body;
 
@@ -235,26 +429,30 @@ const terminateLease = async (req, res) => {
     );
   }
 
-  // Update lease
   lease.status = "Terminated";
   lease.terminatedAt = new Date();
   lease.terminationReason = reason || null;
   await lease.save();
 
-  // Free the unit
-  const unit = await Unit.findById(lease.unit);
-  if (unit) {
-    unit.status = "Vacant";
-    unit.tenant = null;
-    await unit.save();
+  // Only vacate unit if lease was Active — Pending leases never occupied the unit
+  if (lease.status === "Active") {
+    const unit = await Unit.findById(lease.unit);
+    if (unit) {
+      unit.status = "Vacant";
+      unit.tenant = null;
+      await unit.save();
+    }
+
+    const tenant = await Tenant.findById(lease.tenant);
+    if (tenant) {
+      tenant.status = "Former";
+      await tenant.save();
+    }
   }
 
-  // Mark tenant as Former
-  const tenant = await Tenant.findById(lease.tenant);
-  if (tenant) {
-    tenant.status = "Former";
-    await tenant.save();
-  }
+  // Void the agreement
+
+  await voidAgreement(lease._id);
 
   await logActivity({
     actor: req.user.id,
@@ -269,7 +467,10 @@ const terminateLease = async (req, res) => {
 
   res.status(200).json({
     success: true,
-    message: "Lease terminated. Unit is now vacant.",
+    message:
+      lease.status === "Active"
+        ? "Lease terminated. Unit is now vacant."
+        : "Pending lease terminated. Unit remains vacant.",
   });
 };
 
@@ -360,6 +561,36 @@ const renewLease = async (req, res) => {
 
 // ─── PATCH /api/leases/:id/cancel ────────────────────────────────────────────
 // Cancel a Draft or Pending lease that never became active
+// const cancelLease = async (req, res) => {
+//   const lease = await Lease.findOne({
+//     _id: req.params.id,
+//     landlord: req.user.id,
+//   });
+//   if (!lease) throw new ApiError(404, "Lease not found");
+
+//   if (!["Draft", "Pending"].includes(lease.status)) {
+//     throw new ApiError(
+//       400,
+//       `Only Draft or Pending leases can be cancelled. Use terminate for active leases.`,
+//     );
+//   }
+
+//   lease.status = "Cancelled";
+//   await lease.save();
+
+//   // Free the unit if it was reserved
+//   const unit = await Unit.findById(lease.unit);
+//   if (unit && unit.status !== "Occupied") {
+//     unit.status = "Vacant";
+//     unit.tenant = null;
+//     await unit.save();
+//   }
+
+//   res.status(200).json({
+//     success: true,
+//     message: "Lease cancelled successfully",
+//   });
+// };
 const cancelLease = async (req, res) => {
   const lease = await Lease.findOne({
     _id: req.params.id,
@@ -370,24 +601,21 @@ const cancelLease = async (req, res) => {
   if (!["Draft", "Pending"].includes(lease.status)) {
     throw new ApiError(
       400,
-      `Only Draft or Pending leases can be cancelled. Use terminate for active leases.`,
+      "Only Draft or Pending leases can be cancelled. Use terminate for active leases.",
     );
   }
 
   lease.status = "Cancelled";
   await lease.save();
 
-  // Free the unit if it was reserved
-  const unit = await Unit.findById(lease.unit);
-  if (unit && unit.status !== "Occupied") {
-    unit.status = "Vacant";
-    unit.tenant = null;
-    await unit.save();
-  }
+  // Unit stays Vacant — it was never occupied during Pending
+  // Void the agreement
+
+  await voidAgreement(lease._id);
 
   res.status(200).json({
     success: true,
-    message: "Lease cancelled successfully",
+    message: "Lease cancelled. Unit remains vacant.",
   });
 };
 

@@ -197,6 +197,39 @@ const updateUnit = async (req, res) => {
 
 // ─── PATCH /api/units/:id/status ──────────────────────────────────────────────
 // Manually set status to Reserved or Under Maintenance
+// const updateUnitStatus = async (req, res) => {
+//   const { status } = req.body;
+//   const allowed = ["Reserved", "Under Maintenance", "Vacant"];
+
+//   if (!allowed.includes(status)) {
+//     throw new ApiError(
+//       400,
+//       `You can only manually set status to: ${allowed.join(", ")}`,
+//     );
+//   }
+
+//   const unit = await Unit.findOne({ _id: req.params.id, owner: req.user.id });
+//   if (!unit) throw new ApiError(404, "Unit not found");
+//   if (unit.isArchived)
+//     throw new ApiError(400, "Cannot update an archived unit");
+
+//   // Can't manually override an occupied unit
+//   if (unit.status === "Occupied") {
+//     throw new ApiError(
+//       400,
+//       "Cannot change status of an occupied unit. End the lease first.",
+//     );
+//   }
+
+//   unit.status = status;
+//   await unit.save();
+
+//   res.status(200).json({
+//     success: true,
+//     message: `Unit status updated to ${status}`,
+//     data: unit,
+//   });
+// };
 const updateUnitStatus = async (req, res) => {
   const { status } = req.body;
   const allowed = ["Reserved", "Under Maintenance", "Vacant"];
@@ -213,11 +246,20 @@ const updateUnitStatus = async (req, res) => {
   if (unit.isArchived)
     throw new ApiError(400, "Cannot update an archived unit");
 
-  // Can't manually override an occupied unit
   if (unit.status === "Occupied") {
     throw new ApiError(
       400,
       "Cannot change status of an occupied unit. End the lease first.",
+    );
+  }
+
+  // Block if a pending lease exists — the unit is being processed
+  const { getActiveLeaseForUnit } = require("../services/lease.service");
+  const pendingLease = await getActiveLeaseForUnit(unit._id);
+  if (pendingLease) {
+    throw new ApiError(
+      400,
+      "This unit has a pending lease in progress. Cancel the lease before changing unit status.",
     );
   }
 
