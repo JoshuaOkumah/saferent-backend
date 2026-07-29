@@ -159,8 +159,8 @@ rentalAgreementSchema.virtual("activeVersion").get(function () {
 });
 
 // ─── Indexes ──────────────────────────────────────────────────────────────────
-rentalAgreementSchema.index({ lease: 1 });
-rentalAgreementSchema.index({ agreementReference: 1 });
+// rentalAgreementSchema.index({ lease: 1 });
+// rentalAgreementSchema.index({ agreementReference: 1 });
 rentalAgreementSchema.index({ status: 1 });
 
 module.exports = mongoose.model("RentalAgreement", rentalAgreementSchema);

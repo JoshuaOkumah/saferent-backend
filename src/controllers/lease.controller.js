@@ -429,13 +429,15 @@ const terminateLease = async (req, res) => {
     );
   }
 
+  const wasActive = lease.status === "Active"; // ← capture BEFORE mutating
+
   lease.status = "Terminated";
   lease.terminatedAt = new Date();
   lease.terminationReason = reason || null;
   await lease.save();
 
   // Only vacate unit if lease was Active — Pending leases never occupied the unit
-  if (lease.status === "Active") {
+  if (wasActive) {
     const unit = await Unit.findById(lease.unit);
     if (unit) {
       unit.status = "Vacant";
@@ -450,8 +452,7 @@ const terminateLease = async (req, res) => {
     }
   }
 
-  // Void the agreement
-
+  const { voidAgreement } = require("../services/agreement.service");
   await voidAgreement(lease._id);
 
   await logActivity({
@@ -467,10 +468,9 @@ const terminateLease = async (req, res) => {
 
   res.status(200).json({
     success: true,
-    message:
-      lease.status === "Active"
-        ? "Lease terminated. Unit is now vacant."
-        : "Pending lease terminated. Unit remains vacant.",
+    message: wasActive
+      ? "Lease terminated. Unit is now vacant."
+      : "Pending lease terminated. Unit remains vacant.",
   });
 };
 

@@ -64,6 +64,7 @@ const register = async (req, res) => {
     role: "landlord",
     provider: "local",
     isVerified: false,
+    accountStatus: "Pending Activation",
     emailVerificationOtpHash: otpHash,
     emailVerificationExpiry: expiry,
   });
@@ -186,10 +187,9 @@ const login = async (req, res) => {
   console.log("USER FOUND:", !!user);
 
   if (user) {
-    console.log("EMAIL:", user.email);
-    console.log("VERIFIED:", user.isVerified);
-
-    console.log("PROVIDER:", user.provider);
+    // console.log("EMAIL:", user.email);
+    // console.log("VERIFIED:", user.isVerified);
+    // console.log("PROVIDER:", user.provider);
   }
 
   if (!user || user.provider === "google") {

@@ -294,15 +294,39 @@ const processSignature = async ({
       if (!agreementCheck) throw new ApiError(404, "Agreement not found");
 
       if (nonce && agreementCheck.signingNonces.includes(nonce)) {
-        // Duplicate request — return success silently
         result = { duplicate: true, agreement: agreementCheck };
         return;
       }
 
-      // ── Integrity check ─────────────────────────────────────────────────
-      const { agreement, activeVersion } = await verifyAgreementIntegrity(
-        agreementCheck._id,
-      );
+      // ── Integrity check — re-fetch WITH signingNonces selected ──────────
+      const agreement = await RentalAgreement.findById(agreementCheck._id)
+        .select("+signingNonces")
+        .session(session);
+
+      if (agreement.isLocked)
+        throw new ApiError(400, "Agreement is already locked");
+      if (agreement.status === "Void")
+        throw new ApiError(400, "Agreement has been voided");
+      if (!agreement.document?.documentHash) {
+        throw new ApiError(
+          400,
+          "Agreement document has not been generated yet",
+        );
+      }
+      if (!agreement.document?.secureUrl) {
+        throw new ApiError(400, "Agreement document is not available");
+      }
+
+      const activeVersion = agreement.versions.find((v) => v.isActive);
+      if (!activeVersion)
+        throw new ApiError(500, "No active agreement version found");
+
+      if (activeVersion.documentHash !== agreement.document.documentHash) {
+        throw new ApiError(
+          409,
+          "Document integrity check failed. The agreement has been modified. Please contact support.",
+        );
+      }
 
       // ── Check not already signed by this party ──────────────────────────
       const existingSig =
@@ -351,14 +375,12 @@ const processSignature = async ({
         verificationStatus: "verified",
       };
 
-      // ── Apply signature ──────────────────────────────────────────────────
       if (signerRole === "landlord") {
         agreement.landlordSignature = signature;
       } else {
         agreement.tenantSignature = signature;
       }
 
-      // ── Determine new status ─────────────────────────────────────────────
       const tenantSigned =
         signerRole === "tenant" ? true : !!agreement.tenantSignature?.signedAt;
       const landlordSigned =
@@ -376,10 +398,12 @@ const processSignature = async ({
         agreement.status = "Partially Signed";
       }
 
-      // ── Add nonce ────────────────────────────────────────────────────────
+      // ── Add nonce — signingNonces is now guaranteed to be an array ───────
       if (nonce) {
+        if (!Array.isArray(agreement.signingNonces)) {
+          agreement.signingNonces = [];
+        }
         agreement.signingNonces.push(nonce);
-        // Keep last 20 nonces only
         if (agreement.signingNonces.length > 20) {
           agreement.signingNonces = agreement.signingNonces.slice(-20);
         }
@@ -387,7 +411,6 @@ const processSignature = async ({
 
       await agreement.save({ session });
 
-      // ── If both signed — activate lease, occupy unit, activate tenant ────
       if (bothSigned) {
         const lease = await Lease.findById(leaseId).session(session);
         lease.status = "Active";
@@ -444,7 +467,6 @@ const processSignature = async ({
         });
       }
 
-      // ── Audit the signing event ──────────────────────────────────────────
       const auditEvent =
         signerRole === "landlord" ? "LANDLORD_SIGNED" : "TENANT_SIGNED";
 

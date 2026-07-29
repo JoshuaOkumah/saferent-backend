@@ -4,9 +4,22 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "nodemon server.js",
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "jest --runInBand --forceExit --detectOpenHandles",
+    "test:watch": "jest --watch --runInBand",
+    "test:coverage": "jest --coverage --runInBand --forceExit --detectOpenHandles",
+    "test:auth": "jest tests/auth --runInBand --forceExit",
+    "test:profile": "jest tests/profile --runInBand --forceExit",
+    "test:properties": "jest tests/properties --runInBand --forceExit",
+    "test:units": "jest tests/units --runInBand --forceExit",
+    "test:tenants": "jest tests/tenants --runInBand --forceExit",
+    "test:leases": "jest tests/leases --runInBand --forceExit",
+    "test:agreements": "jest tests/agreements --runInBand --forceExit",
+    "test:integration": "jest tests/integration --runInBand --forceExit",
+    "test:middleware": "jest tests/middleware --runInBand --forceExit",
+    "test:utils": "jest tests/utils --runInBand --forceExit",
+    "test:ci": "jest --runInBand --forceExit --detectOpenHandles --ci --coverage"
   },
   "repository": {
     "type": "git",
@@ -40,6 +53,9 @@
   },
   "devDependencies": {
     "eslint": "^10.6.0",
-    "nodemon": "^3.1.14"
+    "jest": "^29.7.0",
+    "mongodb-memory-server": "^11.2.0",
+    "nodemon": "^3.1.14",
+    "supertest": "^7.2.2"
   }
 }

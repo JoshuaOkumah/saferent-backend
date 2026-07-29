@@ -245,7 +245,6 @@ const landlordSign = async (req, res) => {
 
 // ─── GET /api/agreements/:leaseId/audit ───────────────────────────────────────
 const getAuditTrail = async (req, res) => {
-  // Only landlords and admins can see the full audit trail
   const lease = await Lease.findOne({
     _id: req.params.leaseId,
     landlord: req.user.id,
